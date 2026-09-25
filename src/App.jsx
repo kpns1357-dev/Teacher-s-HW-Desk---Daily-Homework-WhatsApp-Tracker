@@ -8,7 +8,7 @@ export default function App() {
   const [activeBatch, setActiveBatch] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Initial load directly from Firebase
+  // Initial load
   useEffect(() => {
     async function init() {
       const data = await loadBatches();
@@ -50,7 +50,7 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600 font-medium text-sm">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-          <span>Loading Homework Desk...</span>
+          <span>Loading Homework Tracker...</span>
         </div>
       </div>
     );

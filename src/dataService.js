@@ -11,42 +11,39 @@ const defaultBatches = [
   {
     id: 'batch-1',
     name: 'Class 8th',
-    subject: 'All Subjects',
+    subject: 'General',
     whatsappGroupLink: '',
     whatsappGroupNumber: '',
     students: [
-      { id: 's1', name: 'Aarav Sharma', rollNo: '01' },
-      { id: 's2', name: 'Ananya Verma', rollNo: '02' },
-      { id: 's3', name: 'Rohan Gupta', rollNo: '03' }
+      { id: 's1', name: 'Sample Student 1', rollNo: '01' },
+      { id: 's2', name: 'Sample Student 2', rollNo: '02' }
     ]
   },
   {
     id: 'batch-2',
     name: 'Class 9th',
-    subject: 'Science & Maths',
+    subject: 'General',
     whatsappGroupLink: '',
     whatsappGroupNumber: '',
     students: [
-      { id: 's4', name: 'Ishita Patel', rollNo: '01' },
-      { id: 's5', name: 'Kabir Singh', rollNo: '02' },
-      { id: 's6', name: 'Aditya Roy', rollNo: '03' }
+      { id: 's3', name: 'Sample Student 1', rollNo: '01' },
+      { id: 's4', name: 'Sample Student 2', rollNo: '02' }
     ]
   },
   {
     id: 'batch-3',
     name: 'Class 10th',
-    subject: 'Board Batch',
+    subject: 'General',
     whatsappGroupLink: '',
     whatsappGroupNumber: '',
     students: [
-      { id: 's7', name: 'Pooja Nair', rollNo: '01' },
-      { id: 's8', name: 'Sameer Joshi', rollNo: '02' },
-      { id: 's9', name: 'Tanvi Shah', rollNo: '03' }
+      { id: 's5', name: 'Sample Student 1', rollNo: '01' },
+      { id: 's6', name: 'Sample Student 2', rollNo: '02' }
     ]
   }
 ];
 
-// 1. Load Batches - Auto loads from Firebase Firestore
+// 1. Load Batches (Direct from Firestore with local fallback)
 export const loadBatches = async () => {
   const fb = initFirebase();
   if (fb && fb.db) {
@@ -59,11 +56,10 @@ export const loadBatches = async () => {
         return batches;
       }
     } catch (e) {
-      console.warn("Firestore fetch batches notice:", e);
+      console.warn("Firestore fetch batches failed, falling back to local:", e);
     }
   }
 
-  // Fallback to local storage
   const local = localStorage.getItem(LOCAL_STORAGE_KEY_BATCHES);
   if (local) {
     try {
@@ -76,10 +72,9 @@ export const loadBatches = async () => {
   return defaultBatches;
 };
 
-// 2. Save Batches - Auto saves to Firebase Firestore
+// 2. Save Batches (Auto-syncs directly to Firestore)
 export const saveBatches = async (batches) => {
   localStorage.setItem(LOCAL_STORAGE_KEY_BATCHES, JSON.stringify(batches));
-
   const fb = initFirebase();
   if (fb && fb.db) {
     try {
@@ -92,9 +87,8 @@ export const saveBatches = async (batches) => {
   }
 };
 
-// 3. Save Homework Record - Instant Background Auto-Update to Firebase
+// 3. Save Homework Record (Instant Auto-save to Firestore)
 export const saveHomeworkRecord = async (record) => {
-  // Save locally first
   let logs = [];
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LOGS);
@@ -111,14 +105,14 @@ export const saveHomeworkRecord = async (record) => {
   }
   localStorage.setItem(LOCAL_STORAGE_KEY_LOGS, JSON.stringify(logs));
 
-  // Auto-sync instantly to Firebase Firestore in the background
+  // Auto-save to Firestore in background
   const fb = initFirebase();
   if (fb && fb.db) {
     try {
       const recordDocId = `${record.batchId}_${record.date}`;
       await setDoc(doc(fb.db, 'homework_logs', recordDocId), record);
     } catch (e) {
-      console.warn("Firestore auto-save homework error:", e);
+      console.warn("Firestore saveHomeworkRecord error:", e);
     }
   }
 };
@@ -134,11 +128,10 @@ export const getHomeworkRecord = async (batchId, date) => {
         return snap.data();
       }
     } catch (e) {
-      console.warn("Firestore get record notice:", e);
+      console.warn("Firestore getHomeworkRecord fallback:", e);
     }
   }
 
-  // Local fallback
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LOGS);
     if (raw) {
