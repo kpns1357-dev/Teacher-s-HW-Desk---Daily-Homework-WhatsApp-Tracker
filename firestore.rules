@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Batches collection (Class 8th, 9th, 10th and student rosters)
+    match /batches/{batchId} {
+      allow read, write: if true;
+    }
+    
+    // 2. Daily homework logs (Daily records, attendance, remarks, holiday status)
+    match /homework_logs/{logId} {
+      allow read, write: if true;
+    }
+    
+  }
+}
