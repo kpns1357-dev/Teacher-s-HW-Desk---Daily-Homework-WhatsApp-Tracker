@@ -1,53 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Database, Key, Save, AlertTriangle, ShieldCheck, Copy
+  Server, ShieldCheck, Key, Save, CheckCircle2, AlertTriangle, ExternalLink
 } from 'lucide-react';
-import { getStoredFirebaseConfig, saveFirebaseConfig, initFirebase } from './firebase';
+import { getBackendConfig, saveBackendConfig } from './dataService';
 
 export default function SettingsModal({ onClose }) {
-  const [config, setConfig] = useState(getStoredFirebaseConfig());
+  const [config, setConfig] = useState(getBackendConfig());
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [fbConnectionStatus, setFbConnectionStatus] = useState(null);
-  const [rulesCopied, setRulesCopied] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('checking');
 
-  useEffect(() => {
-    const fb = initFirebase();
-    if (fb && fb.db) {
-      setFbConnectionStatus('connected');
-    } else {
-      setFbConnectionStatus('offline');
+  const testConnection = async (url, key) => {
+    if (!url) {
+      setConnectionStatus('local_only');
+      return;
     }
-  }, []);
-
-  const handleSave = (e) => {
-    e.preventDefault();
-    saveFirebaseConfig(config);
-    setSavedSuccess(true);
-    const fb = initFirebase();
-    if (fb && fb.db) {
-      setFbConnectionStatus('connected');
-    } else {
-      setFbConnectionStatus('offline');
+    setConnectionStatus('checking');
+    try {
+      const res = await fetch(`${url.replace(/\/$/, '')}/api/status`, {
+        headers: { 'x-teacher-key': key }
+      });
+      if (res.ok) {
+        setConnectionStatus('connected');
+      } else {
+        setConnectionStatus('error');
+      }
+    } catch (e) {
+      setConnectionStatus('offline');
     }
-    setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  const firestoreRulesText = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /batches/{batchId} {
-      allow read, write: if true;
-    }
-    match /homework_logs/{logId} {
-      allow read, write: if true;
-    }
-  }
-}`;
+  useEffect(() => {
+    testConnection(config.apiUrl, config.teacherKey);
+  }, []);
 
-  const copyRules = () => {
-    navigator.clipboard.writeText(firestoreRulesText);
-    setRulesCopied(true);
-    setTimeout(() => setRulesCopied(false), 2000);
+  const handleSave = async (e) => {
+    e.preventDefault();
+    saveBackendConfig(config.apiUrl, config.teacherKey);
+    setSavedSuccess(true);
+    await testConnection(config.apiUrl, config.teacherKey);
+    setTimeout(() => setSavedSuccess(false), 2500);
   };
 
   return (
@@ -56,11 +47,11 @@ service cloud.firestore {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-              <Database className="w-5 h-5" />
+              <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-base text-slate-800">Firebase & Storage Settings</h2>
-              <p className="text-xs text-slate-500">Sync homework data across your devices</p>
+              <h2 className="font-bold text-base text-slate-800">100% Private Cloud Database</h2>
+              <p className="text-xs text-slate-500">Zero Firebase keys exposed in browser or inspect</p>
             </div>
           </div>
           <button
@@ -72,83 +63,67 @@ service cloud.firestore {
         </div>
 
         <div className="space-y-4">
-          <div className={`p-3 rounded-2xl flex items-center gap-3 text-xs font-semibold ${
-            fbConnectionStatus === 'connected' 
+          {/* Connection Status Banner */}
+          <div className={`p-3.5 rounded-2xl flex items-center gap-3 text-xs font-semibold ${
+            connectionStatus === 'connected' 
               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+              : connectionStatus === 'checking'
+              ? 'bg-blue-50 text-blue-800 border border-blue-200'
               : 'bg-amber-50 text-amber-800 border border-amber-200'
           }`}>
-            {fbConnectionStatus === 'connected' ? (
+            {connectionStatus === 'connected' ? (
               <>
                 <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                 <div>
-                  <p className="font-bold">Firestore Connected</p>
-                  <p className="text-[11px] font-normal text-emerald-700">All student records sync securely to your private Firebase cloud database.</p>
+                  <p className="font-bold">Private Server Connected & Syncing</p>
+                  <p className="text-[11px] font-normal text-emerald-700">
+                    All homework updates are securely routed through your private server to Firebase. No keys exist in the frontend!
+                  </p>
                 </div>
               </>
+            ) : connectionStatus === 'checking' ? (
+              <div>Testing private server connection...</div>
             ) : (
               <>
                 <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
                 <div>
-                  <p className="font-bold">Local Offline Storage Active</p>
-                  <p className="text-[11px] font-normal text-amber-700">App works completely offline in your browser. Fill Firebase config below to sync.</p>
+                  <p className="font-bold">Local Device Storage Active</p>
+                  <p className="text-[11px] font-normal text-amber-700">
+                    App is running securely offline on this device. Connect your private backend server URL below to auto-sync to Firebase.
+                  </p>
                 </div>
               </>
             )}
           </div>
 
-          <form onSubmit={handleSave} className="space-y-3">
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Project ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="my-school-hw-123"
-                  value={config.projectId || ''}
-                  onChange={(e) => setConfig({ ...config, projectId: e.target.value })}
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  API Key
-                </label>
-                <input
-                  type="text"
-                  placeholder="AIzaSy..."
-                  value={config.apiKey || ''}
-                  onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
+          <form onSubmit={handleSave} className="space-y-3.5">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                Private Backend Proxy URL (e.g. Render / Railway / Vercel)
+              </label>
+              <input
+                type="url"
+                placeholder="https://my-homework-api.onrender.com"
+                value={config.apiUrl}
+                onChange={(e) => setConfig({ ...config, apiUrl: e.target.value })}
+                className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                The frontend sends data only to this URL. The backend holds your Firebase credentials privately.
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Auth Domain
-                </label>
-                <input
-                  type="text"
-                  placeholder="project-id.firebaseapp.com"
-                  value={config.authDomain || ''}
-                  onChange={(e) => setConfig({ ...config, authDomain: e.target.value })}
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  App ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="1:123456789:web:abcdef"
-                  value={config.appId || ''}
-                  onChange={(e) => setConfig({ ...config, appId: e.target.value })}
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                Teacher Access Password / Key (Optional)
+              </label>
+              <input
+                type="password"
+                placeholder="Enter teacher secret pass"
+                value={config.teacherKey}
+                onChange={(e) => setConfig({ ...config, teacherKey: e.target.value })}
+                className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
             </div>
 
             <button
@@ -156,33 +131,28 @@ service cloud.firestore {
               className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5"
             >
               <Save className="w-4 h-4" />
-              <span>Save Firebase Configuration</span>
+              <span>Save & Connect Private Backend</span>
             </button>
 
             {savedSuccess && (
               <p className="text-center text-xs font-semibold text-emerald-600 animate-in fade-in">
-                ✓ Firebase configuration updated!
+                ✓ Private backend URL updated!
               </p>
             )}
           </form>
 
-          <div className="mt-4 pt-3 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 uppercase tracking-wide">
-                <Key className="w-3.5 h-3.5 text-amber-500" />
-                <span>Firestore Security Rules</span>
-              </div>
-              <button
-                onClick={copyRules}
-                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-              >
-                <Copy className="w-3 h-3" />
-                <span>{rulesCopied ? 'Copied!' : 'Copy Rules'}</span>
-              </button>
-            </div>
-            <pre className="bg-slate-900 text-slate-200 p-3 rounded-xl text-[11px] font-mono overflow-x-auto whitespace-pre leading-relaxed">
-              {firestoreRulesText}
-            </pre>
+          {/* Explanation Box */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-600 space-y-1.5">
+            <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Server className="w-4 h-4 text-emerald-600" />
+              <span>How your privacy is guaranteed:</span>
+            </h4>
+            <p className="text-[11px] leading-relaxed">
+              1. <b>Zero Firebase APIs in Frontend:</b> Anyone inspecting the website or source code will never see any Firebase project ID, API keys, or database rules.
+            </p>
+            <p className="text-[11px] leading-relaxed">
+              2. <b>Auto-Sync:</b> Every time you mark a batch as Done, Incomplete, or Holiday, the app automatically updates the database in the background.
+            </p>
           </div>
         </div>
       </div>

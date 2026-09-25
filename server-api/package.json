@@ -1,0 +1,16 @@
+{
+  "name": "homework-tracker-api",
+  "version": "1.0.0",
+  "description": "Secure private backend proxy for Teacher Homework Desk",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.2.0"
+  }
+}

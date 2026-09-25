@@ -1,11 +1,7 @@
-import { initFirebase } from './firebase';
-import { 
-  collection, doc, getDocs, setDoc, deleteDoc, updateDoc, 
-  query, where, orderBy, getDoc 
-} from 'firebase/firestore';
-
 const LOCAL_STORAGE_KEY_BATCHES = 'hw_batches_data';
 const LOCAL_STORAGE_KEY_LOGS = 'hw_logs_data';
+const LOCAL_STORAGE_KEY_API_URL = 'hw_backend_api_url';
+const LOCAL_STORAGE_KEY_TEACHER_KEY = 'hw_backend_teacher_key';
 
 // Default initial batches for demonstration
 const defaultBatches = [
@@ -50,18 +46,33 @@ const defaultBatches = [
   }
 ];
 
+export const getBackendConfig = () => ({
+  apiUrl: localStorage.getItem(LOCAL_STORAGE_KEY_API_URL) || import.meta.env.VITE_BACKEND_API_URL || '',
+  teacherKey: localStorage.getItem(LOCAL_STORAGE_KEY_TEACHER_KEY) || import.meta.env.VITE_TEACHER_KEY || ''
+});
+
+export const saveBackendConfig = (apiUrl, teacherKey) => {
+  localStorage.setItem(LOCAL_STORAGE_KEY_API_URL, apiUrl || '');
+  localStorage.setItem(LOCAL_STORAGE_KEY_TEACHER_KEY, teacherKey || '');
+};
+
+// 1. Load Batches
 export const loadBatches = async () => {
-  const fb = initFirebase();
-  if (fb && fb.db) {
+  const { apiUrl, teacherKey } = getBackendConfig();
+  if (apiUrl) {
     try {
-      const snap = await getDocs(collection(fb.db, 'batches'));
-      if (!snap.empty) {
-        const batches = [];
-        snap.forEach(d => batches.push({ id: d.id, ...d.data() }));
-        return batches;
+      const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/batches`, {
+        headers: { 'x-teacher-key': teacherKey }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.batches && data.batches.length > 0) {
+          localStorage.setItem(LOCAL_STORAGE_KEY_BATCHES, JSON.stringify(data.batches));
+          return data.batches;
+        }
       }
     } catch (e) {
-      console.warn("Firestore fetch batches failed, falling back to local:", e);
+      console.warn("Backend proxy offline or unreachable, using local:", e);
     }
   }
 
@@ -78,22 +89,30 @@ export const loadBatches = async () => {
   return defaultBatches;
 };
 
+// 2. Save Batches
 export const saveBatches = async (batches) => {
   localStorage.setItem(LOCAL_STORAGE_KEY_BATCHES, JSON.stringify(batches));
-  const fb = initFirebase();
-  if (fb && fb.db) {
+
+  const { apiUrl, teacherKey } = getBackendConfig();
+  if (apiUrl) {
     try {
-      for (const batch of batches) {
-        await setDoc(doc(fb.db, 'batches', batch.id), batch);
-      }
+      await fetch(`${apiUrl.replace(/\/$/, '')}/api/batches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-teacher-key': teacherKey
+        },
+        body: JSON.stringify({ batches })
+      });
     } catch (e) {
-      console.warn("Failed saving batches to Firestore:", e);
+      console.warn("Failed saving batches to backend proxy:", e);
     }
   }
 };
 
+// 3. Save Homework Record (Automatic sync)
 export const saveHomeworkRecord = async (record) => {
-  // Save locally
+  // Save locally first
   let logs = [];
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LOGS);
@@ -101,7 +120,7 @@ export const saveHomeworkRecord = async (record) => {
   } catch (e) {
     console.error(e);
   }
-  // Replace or prepend
+
   const existingIdx = logs.findIndex(l => l.batchId === record.batchId && l.date === record.date);
   if (existingIdx >= 0) {
     logs[existingIdx] = record;
@@ -110,29 +129,38 @@ export const saveHomeworkRecord = async (record) => {
   }
   localStorage.setItem(LOCAL_STORAGE_KEY_LOGS, JSON.stringify(logs));
 
-  // Sync to Firestore
-  const fb = initFirebase();
-  if (fb && fb.db) {
+  // Sync to secure backend proxy
+  const { apiUrl, teacherKey } = getBackendConfig();
+  if (apiUrl) {
     try {
-      const recordDocId = `${record.batchId}_${record.date}`;
-      await setDoc(doc(fb.db, 'homework_logs', recordDocId), record);
+      await fetch(`${apiUrl.replace(/\/$/, '')}/api/homework`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-teacher-key': teacherKey
+        },
+        body: JSON.stringify(record)
+      });
     } catch (e) {
-      console.warn("Firestore saveHomeworkRecord error:", e);
+      console.warn("Failed to auto-sync homework record to private backend:", e);
     }
   }
 };
 
+// 4. Get Homework Record
 export const getHomeworkRecord = async (batchId, date) => {
-  const fb = initFirebase();
-  if (fb && fb.db) {
+  const { apiUrl, teacherKey } = getBackendConfig();
+  if (apiUrl) {
     try {
-      const recordDocId = `${batchId}_${date}`;
-      const snap = await getDoc(doc(fb.db, 'homework_logs', recordDocId));
-      if (snap.exists()) {
-        return snap.data();
+      const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/homework/${batchId}/${date}`, {
+        headers: { 'x-teacher-key': teacherKey }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.record) return data.record;
       }
     } catch (e) {
-      console.warn("Firestore getHomeworkRecord fallback:", e);
+      console.warn("Backend proxy get record fallback:", e);
     }
   }
 
@@ -147,30 +175,4 @@ export const getHomeworkRecord = async (batchId, date) => {
     console.error(e);
   }
   return null;
-};
-
-export const getBatchHistory = async (batchId) => {
-  let records = [];
-  const fb = initFirebase();
-  if (fb && fb.db) {
-    try {
-      const q = query(collection(fb.db, 'homework_logs'), where('batchId', '==', batchId), orderBy('date', 'desc'));
-      const snap = await getDocs(q);
-      snap.forEach(d => records.push(d.data()));
-      if (records.length > 0) return records;
-    } catch (e) {
-      console.warn("Firestore getBatchHistory fallback:", e);
-    }
-  }
-
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LOGS);
-    if (raw) {
-      const logs = JSON.parse(raw);
-      return logs.filter(l => l.batchId === batchId).sort((a,b) => b.date.localeCompare(a.date));
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  return [];
 };
