@@ -1,7 +1,6 @@
 const LOCAL_STORAGE_KEY_BATCHES = 'hw_batches_data';
 const LOCAL_STORAGE_KEY_LOGS = 'hw_logs_data';
 const LOCAL_STORAGE_KEY_API_URL = 'hw_backend_api_url';
-const LOCAL_STORAGE_KEY_TEACHER_KEY = 'hw_backend_teacher_key';
 
 // Default initial batches for demonstration
 const defaultBatches = [
@@ -47,23 +46,19 @@ const defaultBatches = [
 ];
 
 export const getBackendConfig = () => ({
-  apiUrl: localStorage.getItem(LOCAL_STORAGE_KEY_API_URL) || import.meta.env.VITE_BACKEND_API_URL || '',
-  teacherKey: localStorage.getItem(LOCAL_STORAGE_KEY_TEACHER_KEY) || import.meta.env.VITE_TEACHER_KEY || ''
+  apiUrl: localStorage.getItem(LOCAL_STORAGE_KEY_API_URL) || import.meta.env.VITE_BACKEND_API_URL || ''
 });
 
-export const saveBackendConfig = (apiUrl, teacherKey) => {
+export const saveBackendConfig = (apiUrl) => {
   localStorage.setItem(LOCAL_STORAGE_KEY_API_URL, apiUrl || '');
-  localStorage.setItem(LOCAL_STORAGE_KEY_TEACHER_KEY, teacherKey || '');
 };
 
 // 1. Load Batches
 export const loadBatches = async () => {
-  const { apiUrl, teacherKey } = getBackendConfig();
+  const { apiUrl } = getBackendConfig();
   if (apiUrl) {
     try {
-      const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/batches`, {
-        headers: { 'x-teacher-key': teacherKey }
-      });
+      const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/batches`);
       if (res.ok) {
         const data = await res.json();
         if (data.batches && data.batches.length > 0) {
@@ -72,7 +67,7 @@ export const loadBatches = async () => {
         }
       }
     } catch (e) {
-      console.warn("Backend proxy offline or unreachable, using local:", e);
+      console.warn("Backend proxy offline, using local:", e);
     }
   }
 
@@ -93,14 +88,13 @@ export const loadBatches = async () => {
 export const saveBatches = async (batches) => {
   localStorage.setItem(LOCAL_STORAGE_KEY_BATCHES, JSON.stringify(batches));
 
-  const { apiUrl, teacherKey } = getBackendConfig();
+  const { apiUrl } = getBackendConfig();
   if (apiUrl) {
     try {
       await fetch(`${apiUrl.replace(/\/$/, '')}/api/batches`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-teacher-key': teacherKey
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ batches })
       });
@@ -129,15 +123,14 @@ export const saveHomeworkRecord = async (record) => {
   }
   localStorage.setItem(LOCAL_STORAGE_KEY_LOGS, JSON.stringify(logs));
 
-  // Sync to secure backend proxy
-  const { apiUrl, teacherKey } = getBackendConfig();
+  // Sync automatically to private backend proxy
+  const { apiUrl } = getBackendConfig();
   if (apiUrl) {
     try {
       await fetch(`${apiUrl.replace(/\/$/, '')}/api/homework`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-teacher-key': teacherKey
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(record)
       });
@@ -149,12 +142,10 @@ export const saveHomeworkRecord = async (record) => {
 
 // 4. Get Homework Record
 export const getHomeworkRecord = async (batchId, date) => {
-  const { apiUrl, teacherKey } = getBackendConfig();
+  const { apiUrl } = getBackendConfig();
   if (apiUrl) {
     try {
-      const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/homework/${batchId}/${date}`, {
-        headers: { 'x-teacher-key': teacherKey }
-      });
+      const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/homework/${batchId}/${date}`);
       if (res.ok) {
         const data = await res.json();
         if (data.record) return data.record;

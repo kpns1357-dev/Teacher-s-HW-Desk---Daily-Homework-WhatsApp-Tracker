@@ -10,7 +10,6 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
-const TEACHER_SECRET_KEY = process.env.TEACHER_SECRET_KEY || 'my-secret-teacher-pass-123';
 
 // Initialize Firebase Admin securely using Private Service Account credentials
 if (!admin.apps.length) {
@@ -40,18 +39,7 @@ if (!admin.apps.length) {
 
 const db = admin.apps.length ? admin.firestore() : null;
 
-// Teacher Authentication Middleware (Optional security token)
-const authMiddleware = (req, res, next) => {
-  const token = req.headers['x-teacher-key'];
-  if (process.env.REQUIRE_KEY === 'true' && token !== TEACHER_SECRET_KEY) {
-    return res.status(401).json({ error: 'Unauthorized access to homework database.' });
-  }
-  next();
-};
-
-app.use(authMiddleware);
-
-// --- ROUTES ---
+// --- ZERO-LOGIN AUTO-SAVING API ROUTES ---
 
 // 1. Health & status check
 app.get('/api/status', (req, res) => {
@@ -75,7 +63,7 @@ app.get('/api/batches', async (req, res) => {
   }
 });
 
-// 3. Save batches
+// 3. Save batches (Auto-save)
 app.post('/api/batches', async (req, res) => {
   if (!db) return res.json({ success: true, mocked: true });
   const { batches } = req.body;
@@ -96,7 +84,7 @@ app.post('/api/batches', async (req, res) => {
   }
 });
 
-// 4. Save daily homework record (Auto-update)
+// 4. Save daily homework record (Instant background auto-save)
 app.post('/api/homework', async (req, res) => {
   if (!db) return res.json({ success: true, mocked: true });
   const record = req.body;
@@ -132,5 +120,5 @@ app.get('/api/homework/:batchId/:date', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🔒 Secure Private Homework Proxy Server running on port ${PORT}`);
+  console.log(`🔒 Zero-auth private auto-saving homework proxy running on port ${PORT}`);
 });
