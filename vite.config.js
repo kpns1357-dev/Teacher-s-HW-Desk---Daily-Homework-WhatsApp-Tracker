@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/homework/',
+  base: '/Teacher-s-HW-Desk---Daily-Homework-WhatsApp-Tracker/',
   plugins: [
     react(),
     tailwindcss()
