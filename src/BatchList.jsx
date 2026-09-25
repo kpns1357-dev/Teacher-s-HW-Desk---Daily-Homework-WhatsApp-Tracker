@@ -67,15 +67,6 @@ export default function BatchList({
               <p className="text-xs text-emerald-100/90 font-medium">Daily Homework & WhatsApp Notifier</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={onOpenSettings}
-              title="Database & Settings"
-              className="p-2 rounded-xl bg-emerald-700/50 hover:bg-emerald-700 active:scale-95 transition-all text-white"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-          </div>
         </div>
       </header>
 
