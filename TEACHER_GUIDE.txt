@@ -1,0 +1,57 @@
+================================================================================
+               TEACHER'S QUICK GUIDE: DAILY HOMEWORK & WHATSAPP DESK
+================================================================================
+
+Website Link:
+https://kpns1357-dev.github.io/Teacher-s-HW-Desk---Daily-Homework-WhatsApp-Tracker/
+
+(Tip: On phone browser, tap menu -> "Add to Home Screen" to use like a mobile app)
+
+--------------------------------------------------------------------------------
+STEP 1: ADD YOUR BATCH & LINK YOUR WHATSAPP GROUP (One-Time Setup)
+--------------------------------------------------------------------------------
+1. Tap the "+ Add Batch" button on the main screen.
+2. Enter the Batch Name (e.g. Class 8th, Class 9th Maths, Class 10th Science).
+
+3. IMPORTANT: ADD YOUR WHATSAPP GROUP INVITE LINK
+   - Open WhatsApp on your phone.
+   - Go to your batch group (e.g., Class 8th Homework group).
+   - Tap the group name at the top to open Group Info.
+   - Scroll down and tap "Invite to group via link" -> "Copy link".
+   - Paste that link into the "WhatsApp Group Invite Link" field.
+   
+   Why do this?
+   When you finish checking homework, the app will automatically copy the report
+   and open this exact group directly on your phone/PC without searching contacts!
+
+4. Paste your student names (one name per line).
+5. Click "Create Batch".
+
+--------------------------------------------------------------------------------
+STEP 2: CHECK DAILY HOMEWORK (< 30 Seconds)
+--------------------------------------------------------------------------------
+1. Tap on the batch you want to check.
+2. For each student, tap their status:
+   - [Done]       : Green checkmark (Completed)
+   - [Incomplete] : Amber warning icon (tap the pencil icon to add a note
+                    e.g. "Only questions 1-3 done", "Rough notebook")
+   - [Not Done]   : Red cross (Did not do homework)
+   - [Absent]     : Grey icon (Student was absent today)
+
+   * Quick Tip: If most students finished, tap "Mark All Done" at the top,
+     then only tap the few who did not do it!
+
+3. Holiday or Test Day:
+   If there is no homework today, simply tap "No Homework" or "Holiday" at the top.
+
+--------------------------------------------------------------------------------
+STEP 3: SEND TO WHATSAPP WITH 1 TAP
+--------------------------------------------------------------------------------
+1. Click the green button at the bottom: "Open Batch Group & Paste".
+2. The app will:
+   - Auto-copy the entire formatted summary to your clipboard.
+   - Open the WhatsApp group directly.
+3. Tap "Paste" and click "Send".
+
+Done! All records automatically save in the background.
+================================================================================
