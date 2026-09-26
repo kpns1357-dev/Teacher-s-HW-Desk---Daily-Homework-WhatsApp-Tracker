@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { verifyTeacher } from './dataService';
-import { Lock, User, AlertCircle, LogIn, ShieldCheck, Key } from 'lucide-react';
+import { Lock, User, AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
 
 export default function AuthScreen({ onLoginSuccess }) {
   const [userId, setUserId] = useState('');
@@ -48,21 +48,6 @@ export default function AuthScreen({ onLoginSuccess }) {
           </p>
         </div>
 
-        {/* Master password hint for initial login */}
-        <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
-          <div className="flex items-center gap-1.5 font-bold mb-1">
-            <Key className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Default Login:</span>
-          </div>
-          <p className="text-[11px] text-emerald-800">
-            User ID: <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono font-bold">admin</code>
-            <br />
-            Password: <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono font-bold">Teacher@123</code>
-          </p>
-          <p className="text-[10px] text-emerald-700 mt-1 italic">
-            Once inside, you can add new teachers with custom IDs and passwords anytime!
-          </p>
-        </div>
 
         {errorMsg && (
           <div className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
