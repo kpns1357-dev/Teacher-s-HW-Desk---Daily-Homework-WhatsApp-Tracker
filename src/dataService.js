@@ -213,6 +213,28 @@ export const signOutTeacher = async () => {
   }
 };
 
+// 5. Delete Teacher / Remove Authorization
+export const deleteTeacher = async (userId) => {
+  const cleanId = userId.trim().toLowerCase();
+  
+  // Update local list
+  const teachers = await loadTeachers();
+  const filtered = teachers.filter(t => t.userId !== cleanId);
+  localStorage.setItem(LOCAL_STORAGE_TEACHERS, JSON.stringify(filtered));
+
+  // Delete from Firestore
+  const fb = initFirebase();
+  if (fb && fb.db) {
+    try {
+      await deleteDoc(doc(fb.db, 'authorized_teachers', cleanId));
+    } catch (e) {
+      console.warn("Firestore deleteTeacher failed:", e);
+    }
+  }
+
+  return filtered;
+};
+
 // --- BATCHES & HOMEWORK DATA LOGIC ---
 
 const defaultBatches = [

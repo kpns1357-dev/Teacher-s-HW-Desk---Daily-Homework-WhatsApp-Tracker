@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, Plus, Trash2, ArrowRight, BookOpen, MessageCircle, Calendar, Sparkles, CheckCircle2, UserPlus, Shield, X, Check
 } from 'lucide-react';
-import { addTeacher } from './dataService';
+import { addTeacher, loadTeachers, deleteTeacher } from './dataService';
 
 export default function BatchList({ 
   batches, 
@@ -19,11 +19,26 @@ export default function BatchList({
   const [newPhone, setNewPhone] = useState('');
   const [rawStudentNames, setRawStudentNames] = useState('');
 
-  // Add Teacher Modal state
+  // Add & Manage Teachers state
   const [showTeacherModal, setShowTeacherModal] = useState(false);
+  const [teachersList, setTeachersList] = useState([]);
   const [newTeacherId, setNewTeacherId] = useState('');
   const [newTeacherPass, setNewTeacherPass] = useState('');
   const [teacherAddedMsg, setTeacherAddedMsg] = useState('');
+
+  // Refresh teachers list whenever modal opens
+  useEffect(() => {
+    if (showTeacherModal) {
+      loadTeachers().then(list => setTeachersList(list || []));
+    }
+  }, [showTeacherModal]);
+
+  const handleDeleteTeacher = async (teacherId) => {
+    if (window.confirm(`Are you sure you want to remove teacher "${teacherId}"? They will no longer be able to log in.`)) {
+      const updated = await deleteTeacher(teacherId);
+      setTeachersList(updated);
+    }
+  };
 
   const handleCreateBatch = (e) => {
     e.preventDefault();
@@ -63,13 +78,14 @@ export default function BatchList({
     e.preventDefault();
     if (!newTeacherId.trim() || !newTeacherPass) return;
     await addTeacher(newTeacherId, newTeacherPass);
+    const updated = await loadTeachers();
+    setTeachersList(updated || []);
     setTeacherAddedMsg(`Teacher "${newTeacherId.trim()}" added with password!`);
     setNewTeacherId('');
     setNewTeacherPass('');
     setTimeout(() => {
       setTeacherAddedMsg('');
-      setShowTeacherModal(false);
-    }, 2000);
+    }, 2500);
   };
 
   return (
@@ -234,54 +250,93 @@ export default function BatchList({
               </div>
             )}
 
-            <form onSubmit={handleCreateTeacher} className="space-y-3.5">
+            <div className="space-y-4">
+              {/* Existing Teachers List */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Teacher User ID *
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">
+                  Authorized Teachers ({teachersList.length})
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. sharma_sir or priya_mam"
-                  value={newTeacherId}
-                  onChange={(e) => setNewTeacherId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {teachersList.map((t) => (
+                    <div 
+                      key={t.userId}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-[11px]">
+                          {t.userId.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{t.userId}</p>
+                          {t.name && t.name !== t.userId && (
+                            <p className="text-[10px] text-slate-500">{t.name}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {t.userId.toLowerCase() !== 'admin' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTeacher(t.userId)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title={`Remove ${t.userId}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                          Main Admin
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Password *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter their password"
-                  value={newTeacherPass}
-                  onChange={(e) => setNewTeacherPass(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Stored securely using SHA-256 encryption.
-                </p>
-              </div>
+              {/* Add New Teacher Form */}
+              <div className="border-t border-slate-100 pt-3">
+                <p className="text-xs font-bold text-slate-800 mb-2">+ Add Another Teacher</p>
+                <form onSubmit={handleCreateTeacher} className="space-y-3">
+                  <div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="New Teacher User ID (e.g. priya_mam)"
+                      value={newTeacherId}
+                      onChange={(e) => setNewTeacherId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
+                    />
+                  </div>
 
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowTeacherModal(false)}
-                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-md active:scale-95"
-                >
-                  Save Teacher
-                </button>
+                  <div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Password"
+                      value={newTeacherPass}
+                      onChange={(e) => setNewTeacherPass(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowTeacherModal(false)}
+                      className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-md active:scale-95 cursor-pointer"
+                    >
+                      Add Teacher
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
