@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
-} from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { initFirebase } from './firebase';
-import { Lock, Mail, KeyRound, BookOpen, AlertCircle, ArrowRight, UserPlus, LogIn, ShieldCheck } from 'lucide-react';
+import { Lock, User, AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
 
 export default function AuthScreen({ onLoginSuccess }) {
-  const [email, setEmail] = useState('');
+  const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -17,45 +13,41 @@ export default function AuthScreen({ onLoginSuccess }) {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!email.trim() || !password) {
-      setErrorMsg('Please enter both Email / User ID and Password.');
+    if (!userId.trim() || !password) {
+      setErrorMsg('Please enter both User ID and Password.');
       return;
     }
 
-    // Auto-complete email format if user only enters a username (e.g. "teacher1" -> "teacher1@homework.desk")
-    const formattedEmail = email.includes('@') ? email.trim() : `${email.trim().toLowerCase()}@homework.desk`;
+    // Convert raw User ID to email format if user didn't type '@'
+    const emailToUse = userId.includes('@') 
+      ? userId.trim() 
+      : `${userId.trim().toLowerCase()}@homework.desk`;
 
     setLoading(true);
     const fb = initFirebase();
 
     if (!fb || !fb.auth) {
-      setErrorMsg('Firebase Authentication is not available.');
+      setErrorMsg('Authentication service unavailable. Please check internet connection.');
       setLoading(false);
       return;
     }
 
     try {
-      if (isRegistering) {
-        // Register new teacher
-        const userCred = await createUserWithEmailAndPassword(fb.auth, formattedEmail, password);
-        onLoginSuccess(userCred.user);
-      } else {
-        // Login existing teacher
-        const userCred = await signInWithEmailAndPassword(fb.auth, formattedEmail, password);
-        onLoginSuccess(userCred.user);
-      }
+      // Strictly sign in only (no registration option on the page)
+      const userCred = await signInWithEmailAndPassword(fb.auth, emailToUse, password);
+      onLoginSuccess(userCred.user);
     } catch (err) {
-      console.error('Auth error:', err);
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        setErrorMsg('Invalid User ID or Password. Please try again.');
-      } else if (err.code === 'auth/email-already-in-use') {
-        setErrorMsg('An account with this User ID already exists. Please Sign In.');
-      } else if (err.code === 'auth/weak-password') {
-        setErrorMsg('Password should be at least 6 characters.');
-      } else if (err.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Email/Password provider is not enabled in Firebase Console -> Authentication -> Sign-in method.');
+      console.error('Sign-in error:', err);
+      if (
+        err.code === 'auth/invalid-credential' || 
+        err.code === 'auth/wrong-password' || 
+        err.code === 'auth/user-not-found'
+      ) {
+        setErrorMsg('Incorrect User ID or Password. Access denied.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setErrorMsg('Too many failed attempts. Please wait a moment and try again.');
       } else {
-        setErrorMsg(err.message || 'Authentication failed. Please check credentials.');
+        setErrorMsg('Authentication failed. Please verify your credentials.');
       }
     } finally {
       setLoading(false);
@@ -63,26 +55,19 @@ export default function AuthScreen({ onLoginSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200/80">
+    <div className="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
+      {/* Strict Authentication Wall */}
+      <div className="bg-white w-full max-w-sm rounded-3xl p-7 shadow-2xl border border-slate-100">
         
-        {/* Brand Header */}
+        {/* Lock Icon & Branding */}
         <div className="text-center mb-6">
-          <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-md">
-            <BookOpen className="w-7 h-7" />
+          <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-600/20">
+            <Lock className="w-7 h-7 stroke-[2.2]" />
           </div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Teacher's HW Desk</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Teacher Authorization</h1>
           <p className="text-xs text-slate-500 mt-1">
-            {isRegistering ? 'Create your private teacher account' : 'Sign in to access your batches & homework'}
+            Enter your assigned User ID & Password to access the homework desk.
           </p>
-        </div>
-
-        {/* Security Notice */}
-        <div className="mb-5 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-900 font-medium">
-          <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-          <span>
-            Passwords are encrypted using <b>Firebase SHA-256 / scrypt</b> hashing. Credentials are never public.
-          </span>
         </div>
 
         {errorMsg && (
@@ -94,30 +79,27 @@ export default function AuthScreen({ onLoginSuccess }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-              User ID / Email
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+              User ID
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Mail className="w-4 h-4" />
+                <User className="w-4 h-4" />
               </div>
               <input
                 type="text"
                 required
                 autoFocus
-                placeholder="teacher1 or teacher@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. teacher1"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
               />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              You can type a simple User ID (e.g. <span className="font-mono text-slate-600">teacher1</span>) or your email.
-            </p>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">
               Password
             </label>
             <div className="relative">
@@ -138,39 +120,22 @@ export default function AuthScreen({ onLoginSuccess }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 mt-2"
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : isRegistering ? (
-              <>
-                <UserPlus className="w-4 h-4" />
-                <span>Create Teacher Account</span>
-              </>
             ) : (
               <>
                 <LogIn className="w-4 h-4" />
-                <span>Sign In to Homework Desk</span>
+                <span>Enter Homework Desk</span>
               </>
             )}
           </button>
         </form>
 
-        {/* Toggle Register / Login */}
-        <div className="mt-5 pt-4 border-t border-slate-100 text-center">
-          <button
-            onClick={() => {
-              setIsRegistering(!isRegistering);
-              setErrorMsg('');
-            }}
-            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
-          >
-            {isRegistering ? (
-              <span>Already have an account? <b>Sign In</b></span>
-            ) : (
-              <span>First time? <b>Create a Teacher Account</b></span>
-            )}
-          </button>
+        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Restricted Portal • Authorized Teachers Only</span>
         </div>
       </div>
     </div>
