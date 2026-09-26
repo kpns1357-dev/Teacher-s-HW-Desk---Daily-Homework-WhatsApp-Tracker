@@ -47,12 +47,11 @@ export const loadTeachers = async () => {
     }
   }
 
-  // Default initial teacher: ID "teacher1" / Password "Teacher@123"
   const defaultList = [
     {
-      id: 'teacher1',
-      userId: 'teacher1',
-      name: 'Default Teacher',
+      id: 'admin',
+      userId: 'admin',
+      name: 'Head Teacher',
       passwordHash: DEFAULT_TEACHER_HASH,
       createdAt: new Date().toISOString()
     }
@@ -70,7 +69,7 @@ export const addTeacher = async (userId, plainPassword, name = '') => {
     id: cleanId,
     userId: cleanId,
     name: name.trim() || cleanId,
-    passwordHash: passwordHash, // Stored encrypted!
+    passwordHash: passwordHash,
     createdAt: new Date().toISOString()
   };
 
@@ -101,7 +100,6 @@ export const verifyTeacher = async (userId, inputPassword) => {
   const cleanId = userId.trim().toLowerCase();
   const inputHash = await sha256(inputPassword);
 
-  // Check Firestore first for real-time validation
   const fb = initFirebase();
   if (fb && fb.db) {
     try {
@@ -117,14 +115,12 @@ export const verifyTeacher = async (userId, inputPassword) => {
     }
   }
 
-  // Local fallback check
   const teachers = await loadTeachers();
   const found = teachers.find(t => t.userId === cleanId);
   if (found && found.passwordHash === inputHash) {
     return { success: true, teacher: found };
   }
 
-  // Also allow master password fallback if no teachers configured yet
   if ((cleanId === 'admin' || cleanId === 'teacher1') && inputHash === DEFAULT_TEACHER_HASH) {
     return { success: true, teacher: { userId: cleanId, name: 'Teacher' } };
   }
@@ -293,4 +289,78 @@ export const getHomeworkRecord = async (batchId, date) => {
     console.error(e);
   }
   return null;
+};
+
+// 5. Get All Homework Logs for a Batch (Sorted by date desc)
+export const getBatchLogs = async (batchId) => {
+  let list = [];
+  const fb = initFirebase();
+  if (fb && fb.db) {
+    try {
+      const snap = await getDocs(collection(fb.db, 'homework_logs'));
+      snap.forEach(d => {
+        const item = d.data();
+        if (item.batchId === batchId) {
+          list.push(item);
+        }
+      });
+    } catch (e) {
+      console.warn("Firestore getBatchLogs fallback:", e);
+    }
+  }
+
+  if (list.length === 0) {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY_LOGS);
+      if (raw) {
+        const logs = JSON.parse(raw);
+        list = logs.filter(l => l.batchId === batchId);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Sort newest date first
+  return list.sort((a, b) => b.date.localeCompare(a.date));
+};
+
+// 6. Check for 3-Day Consecutive Incomplete/Not Done Defaulters
+// Looks through the last 3 logged session days for each student in the batch
+export const check3DayDefaulters = async (batchId, students) => {
+  const allLogs = await getBatchLogs(batchId);
+  // Only look at normal checking days (exclude full holidays / no_homework days)
+  const validLogs = allLogs.filter(l => l.batchStatus === 'normal' && l.entries && l.entries.length > 0);
+
+  if (validLogs.length < 3) {
+    return []; // Need at least 3 historical logs to evaluate 3 consecutive days
+  }
+
+  const last3Logs = validLogs.slice(0, 3);
+  const defaulters = [];
+
+  students.forEach(student => {
+    let uncompletedCount = 0;
+    const historyDates = [];
+
+    last3Logs.forEach(log => {
+      const entry = log.entries.find(e => e.studentId === student.id || e.studentName === student.name);
+      if (entry && (entry.status === 'not_done' || entry.status === 'incomplete')) {
+        uncompletedCount++;
+        historyDates.push({ date: log.date, status: entry.status });
+      }
+    });
+
+    if (uncompletedCount >= 3) {
+      defaulters.push({
+        studentId: student.id,
+        studentName: student.name,
+        rollNo: student.rollNo,
+        consecutiveDays: 3,
+        dates: historyDates.map(h => h.date)
+      });
+    }
+  });
+
+  return defaulters;
 };

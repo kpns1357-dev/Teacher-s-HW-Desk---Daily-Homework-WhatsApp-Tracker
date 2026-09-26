@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Check, X, AlertTriangle, UserX, Sun, BookX, Share2, Copy, 
   MessageSquare, Edit3, Send, CheckCircle2, AlertCircle, Plus, Trash2, Calendar,
-  ExternalLink, Zap, Settings
+  ExternalLink, Zap, History, Bell, BellRing, Eye
 } from 'lucide-react';
 import { formatWhatsAppMessage, sendFastShare, copyToClipboard } from './whatsappUtil';
-import { saveHomeworkRecord, getHomeworkRecord } from './dataService';
+import { 
+  saveHomeworkRecord, getHomeworkRecord, getBatchLogs, check3DayDefaulters 
+} from './dataService';
 
 export default function BatchDetail({ 
   batch, 
@@ -34,6 +36,31 @@ export default function BatchDetail({
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [batchLinkInput, setBatchLinkInput] = useState(batch.whatsappGroupLink || '');
 
+  // History Drawer / Modal state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [batchLogs, setBatchLogs] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
+
+  // 3-Day Consecutive Incomplete / Not Done Alert State
+  const [defaulters, setDefaulters] = useState([]);
+  const [includeDefaultersInWA, setIncludeDefaultersInWA] = useState(false);
+  const [ignoredDefaulters, setIgnoredDefaulters] = useState(false);
+
+  // Check 3-day defaulters on load
+  const runDefaulterCheck = async () => {
+    try {
+      const list = await check3DayDefaulters(batch.id, batch.students);
+      setDefaulters(list);
+    } catch (e) {
+      console.warn("Defaulter check error:", e);
+    }
+  };
+
+  useEffect(() => {
+    runDefaulterCheck();
+  }, [batch.id, batch.students]);
+
   // Load existing log for today or selectedDate
   useEffect(() => {
     let isMounted = true;
@@ -53,7 +80,6 @@ export default function BatchDetail({
           setEntries(map);
         }
       } else if (isMounted) {
-        // initialize default status
         const map = {};
         batch.students.forEach(s => {
           map[s.id] = { status: 'done', remarks: '' };
@@ -66,6 +92,15 @@ export default function BatchDetail({
     loadRecord();
     return () => { isMounted = false; };
   }, [batch.id, selectedDate, batch.students]);
+
+  // Load history logs when History is opened
+  const handleOpenHistory = async () => {
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    const logs = await getBatchLogs(batch.id);
+    setBatchLogs(logs);
+    setHistoryLoading(false);
+  };
 
   // Set student status
   const handleStatusChange = (studentId, status) => {
@@ -128,7 +163,8 @@ export default function BatchDetail({
       batchStatus,
       specialReason,
       entries: formattedEntries,
-      includeRemarks: true
+      includeRemarks: true,
+      repeatDefaulters: (includeDefaultersInWA && !ignoredDefaulters) ? defaulters : []
     });
   };
 
@@ -158,6 +194,7 @@ export default function BatchDetail({
     await saveHomeworkRecord(record);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
+    runDefaulterCheck();
   };
 
   // Ultra-Fast Dispatch Action
@@ -240,7 +277,17 @@ export default function BatchDetail({
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* Quick Link/Direct WhatsApp Group Settings */}
+            {/* History Button */}
+            <button
+              onClick={handleOpenHistory}
+              title="View Homework History"
+              className="px-2.5 py-1.5 bg-emerald-700/60 hover:bg-emerald-700 rounded-xl text-xs font-semibold text-emerald-100 active:scale-95 flex items-center gap-1"
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+
+            {/* Quick Link WhatsApp Group */}
             <button
               onClick={() => setShowLinkModal(true)}
               title="Set WhatsApp Group Link"
@@ -252,7 +299,7 @@ export default function BatchDetail({
             >
               <Zap className="w-4 h-4" />
               <span className="text-[11px] hidden sm:inline">
-                {batch.whatsappGroupLink ? 'Direct Linked' : 'Link Group'}
+                {batch.whatsappGroupLink ? 'Linked' : 'Link'}
               </span>
             </button>
 
@@ -273,6 +320,59 @@ export default function BatchDetail({
           <div className="mb-3 p-3 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
             <Zap className="w-4 h-4 text-emerald-700 flex-shrink-0" />
             <span>{actionNotice}</span>
+          </div>
+        )}
+
+        {/* 3-DAY CONSECUTIVE INCOMPLETE/NOT-DONE TEACHER ALERT NOTIFICATION */}
+        {defaulters.length > 0 && !ignoredDefaulters && (
+          <div className="mb-4 p-4 rounded-3xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-950 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-500 text-white rounded-2xl flex-shrink-0 shadow-xs">
+                <BellRing className="w-5 h-5 animate-bounce" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-amber-900">
+                    ⚠️ 3-Day Homework Alert!
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">
+                    {defaulters.length} Student{defaulters.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800/90 mt-1 leading-relaxed">
+                  The following students have <b>not completed</b> their homework for <b>3 consecutive sessions</b>:
+                </p>
+
+                <div className="mt-2.5 space-y-1 bg-white/80 p-2.5 rounded-xl border border-amber-200">
+                  {defaulters.map((d, i) => (
+                    <div key={d.studentId} className="text-xs font-semibold text-amber-900 flex items-center justify-between">
+                      <span>• {d.studentName} {d.rollNo ? `(#${d.rollNo})` : ''}</span>
+                      <span className="text-[10px] text-amber-700 font-normal">Pending 3 days</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setIncludeDefaultersInWA(!includeDefaultersInWA)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      includeDefaultersInWA
+                        ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-600/30'
+                        : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-100/50'
+                    }`}
+                  >
+                    <span>{includeDefaultersInWA ? '✓ Included in WhatsApp Note' : '+ Add Note to WhatsApp'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIgnoredDefaulters(true)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100"
+                  >
+                    Ignore
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -624,6 +724,112 @@ export default function BatchDetail({
         </div>
       </div>
 
+      {/* HOMEWORK HISTORY MODAL */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white w-full max-w-lg rounded-3xl p-5 shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">{batch.name} - History</h3>
+                  <p className="text-xs text-slate-500">View past homework records by date</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 py-3 space-y-3">
+              {historyLoading ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  Loading past records...
+                </div>
+              ) : batchLogs.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  No past homework records found for this batch yet.
+                </div>
+              ) : (
+                batchLogs.map((log) => {
+                  const logDone = log.entries ? log.entries.filter(e => e.status === 'done').length : 0;
+                  const logIncomplete = log.entries ? log.entries.filter(e => e.status === 'incomplete').length : 0;
+                  const logNotDone = log.entries ? log.entries.filter(e => e.status === 'not_done').length : 0;
+                  const isExpanded = selectedHistoryDate === log.date;
+
+                  return (
+                    <div 
+                      key={log.date} 
+                      className="border border-slate-200 rounded-2xl p-3 hover:border-emerald-300 transition-colors"
+                    >
+                      <div 
+                        onClick={() => setSelectedHistoryDate(isExpanded ? null : log.date)}
+                        className="flex items-center justify-between cursor-pointer"
+                      >
+                        <div>
+                          <span className="font-bold text-sm text-slate-800">
+                            📅 {log.date}
+                          </span>
+                          {log.batchStatus === 'holiday' ? (
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-800 font-bold">Holiday</span>
+                          ) : log.batchStatus === 'no_homework' ? (
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-bold">No HW</span>
+                          ) : (
+                            <div className="flex gap-2 text-[11px] font-semibold mt-1">
+                              <span className="text-emerald-700">✓ {logDone} Done</span>
+                              <span className="text-amber-700">⚠️ {logIncomplete} Incomplete</span>
+                              <span className="text-rose-700">❌ {logNotDone} Not Done</span>
+                            </div>
+                          )}
+                        </div>
+                        <button className="text-xs text-emerald-600 font-bold">
+                          {isExpanded ? 'Hide' : 'Details'}
+                        </button>
+                      </div>
+
+                      {/* Expanded student breakdown */}
+                      {isExpanded && log.entries && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                          {log.entries.map((e, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs py-0.5">
+                              <span className="text-slate-700 font-medium">
+                                {e.studentName} {e.remarks ? <span className="text-amber-700 italic">("{e.remarks}")</span> : ''}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                                e.status === 'done' ? 'bg-emerald-100 text-emerald-800' :
+                                e.status === 'incomplete' ? 'bg-amber-100 text-amber-800' :
+                                e.status === 'not_done' ? 'bg-rose-100 text-rose-800' :
+                                'bg-slate-100 text-slate-700'
+                              }`}>
+                                {e.status === 'done' ? 'Done' : e.status === 'incomplete' ? 'Incomplete' : e.status === 'not_done' ? 'Not Done' : 'Absent'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 text-right">
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+              >
+                Close History
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* WhatsApp Group Direct Link Setup Modal */}
       {showLinkModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
@@ -644,10 +850,6 @@ export default function BatchDetail({
             <p className="text-xs text-slate-600 mb-3 leading-relaxed">
               Paste the batch's <b>WhatsApp Group Invite Link</b> once (e.g. from WhatsApp Group Info &rarr; Invite via link).
             </p>
-
-            <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-[11px] text-emerald-800 mb-3 font-medium">
-              ⚡ <b>Why do this?</b> When linked, tapping "Send" will <b>automatically copy the report</b> and <b>jump directly into this exact group chat</b> instantly—no searching or scrolling through contacts!
-            </div>
 
             <form onSubmit={handleSaveGroupLink} className="space-y-3">
               <div>
