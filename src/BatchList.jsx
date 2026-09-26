@@ -5,11 +5,11 @@ import {
 
 export default function BatchList({ 
   batches, 
+  user,
   onSelectBatch, 
   onAddBatch, 
   onDeleteBatch, 
-  onOpenSettings,
-  onOpenHistory 
+  onSignOut 
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newBatchName, setNewBatchName] = useState('');
@@ -66,6 +66,18 @@ export default function BatchList({
               <h1 className="font-bold text-lg leading-tight tracking-tight">Teacher's HW Desk</h1>
               <p className="text-xs text-emerald-100/90 font-medium">Daily Homework & WhatsApp Notifier</p>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline text-xs text-emerald-100 font-medium">
+              {user?.email ? user.email.replace('@homework.desk', '') : 'Teacher'}
+            </span>
+            <button
+              onClick={onSignOut}
+              title="Sign Out"
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-700/60 hover:bg-emerald-700 active:scale-95 text-xs text-white font-semibold transition-all flex items-center gap-1.5"
+            >
+              <span>Sign Out</span>
+            </button>
           </div>
         </div>
       </header>
