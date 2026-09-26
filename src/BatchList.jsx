@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, Plus, Trash2, ArrowRight, BookOpen, MessageCircle, Calendar, Sparkles, CheckCircle2, UserPlus, Shield, X, Check
+  Users, Plus, Trash2, ArrowRight, BookOpen, MessageCircle, Calendar, Sparkles, CheckCircle2, UserPlus, Shield, X, Check, Key, Edit3
 } from 'lucide-react';
-import { addTeacher, loadTeachers, deleteTeacher } from './dataService';
+import { addTeacher, loadTeachers, deleteTeacher, updateAdminCredentials } from './dataService';
 
 export default function BatchList({ 
   batches, 
@@ -25,6 +25,12 @@ export default function BatchList({
   const [newTeacherId, setNewTeacherId] = useState('');
   const [newTeacherPass, setNewTeacherPass] = useState('');
   const [teacherAddedMsg, setTeacherAddedMsg] = useState('');
+
+  // Change Admin Account state
+  const [showChangeAdmin, setShowChangeAdmin] = useState(false);
+  const [newAdminId, setNewAdminId] = useState('admin');
+  const [newAdminPass, setNewAdminPass] = useState('');
+  const [adminUpdatedMsg, setAdminUpdatedMsg] = useState('');
 
   // Refresh teachers list whenever modal opens
   useEffect(() => {
@@ -85,6 +91,20 @@ export default function BatchList({
     setNewTeacherPass('');
     setTimeout(() => {
       setTeacherAddedMsg('');
+    }, 2500);
+  };
+
+  const handleUpdateAdmin = async (e) => {
+    e.preventDefault();
+    if (!newAdminId.trim() || !newAdminPass) return;
+    await updateAdminCredentials(newAdminId, newAdminPass);
+    const updated = await loadTeachers();
+    setTeachersList(updated || []);
+    setAdminUpdatedMsg(`Admin updated! User ID: "${newAdminId.trim()}"`);
+    setNewAdminPass('');
+    setTimeout(() => {
+      setAdminUpdatedMsg('');
+      setShowChangeAdmin(false);
     }, 2500);
   };
 
@@ -274,7 +294,7 @@ export default function BatchList({
                         </div>
                       </div>
 
-                      {t.userId.toLowerCase() !== 'admin' ? (
+                      {t.userId.toLowerCase() !== 'admin' && !t.isAdmin ? (
                         <button
                           type="button"
                           onClick={() => handleDeleteTeacher(t.userId)}
@@ -284,14 +304,89 @@ export default function BatchList({
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       ) : (
-                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                          Main Admin
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                            Admin
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewAdminId(t.userId);
+                              setShowChangeAdmin(!showChangeAdmin);
+                            }}
+                            className="p-1 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                            title="Change Admin ID or Password"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
                 </div>
               </div>
+
+              {/* Collapsible Change Admin Form */}
+              {showChangeAdmin && (
+                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 animate-in fade-in">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 mb-2">
+                    <Key className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Change Admin ID & Password</span>
+                  </div>
+
+                  {adminUpdatedMsg && (
+                    <div className="mb-2 p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
+                      {adminUpdatedMsg}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleUpdateAdmin} className="space-y-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-amber-950 uppercase mb-0.5">
+                        Admin User ID
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newAdminId}
+                        onChange={(e) => setNewAdminId(e.target.value)}
+                        placeholder="e.g. admin or headmaster"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-amber-950 uppercase mb-0.5">
+                        New Admin Password
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newAdminPass}
+                        onChange={(e) => setNewAdminPass(e.target.value)}
+                        placeholder="New password (min 6 chars)"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowChangeAdmin(false)}
+                        className="flex-1 py-1.5 bg-slate-200/80 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs cursor-pointer active:scale-95"
+                      >
+                        Save Admin
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
 
               {/* Add New Teacher Form */}
               <div className="border-t border-slate-100 pt-3">

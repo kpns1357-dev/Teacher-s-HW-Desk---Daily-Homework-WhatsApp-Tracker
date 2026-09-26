@@ -235,6 +235,57 @@ export const deleteTeacher = async (userId) => {
   return filtered;
 };
 
+// 6. Update Admin Account Credentials
+export const updateAdminCredentials = async (newAdminId, newAdminPassword) => {
+  const cleanId = newAdminId.trim().toLowerCase();
+  const passwordHash = await sha256(newAdminPassword);
+  const email = formatAuthEmail(cleanId);
+
+  const fb = initFirebase();
+  let authUid = null;
+
+  if (fb && fb.auth) {
+    try {
+      const userCred = await createUserWithEmailAndPassword(fb.auth, email, newAdminPassword);
+      authUid = userCred.user.uid;
+    } catch (e) {
+      console.warn("Firebase Auth admin create notice:", e.code || e.message);
+    }
+  }
+
+  const updatedAdmin = {
+    id: cleanId,
+    userId: cleanId,
+    authEmail: email,
+    authUid: authUid || null,
+    name: 'Head Teacher / Admin',
+    passwordHash: passwordHash,
+    isAdmin: true,
+    updatedAt: new Date().toISOString()
+  };
+
+  const teachers = await loadTeachers();
+  // Remove old admin entries
+  const filtered = teachers.filter(t => t.userId !== 'admin' && t.userId !== cleanId);
+  filtered.unshift(updatedAdmin);
+
+  localStorage.setItem(LOCAL_STORAGE_TEACHERS, JSON.stringify(filtered));
+
+  if (fb && fb.db) {
+    try {
+      await setDoc(doc(fb.db, 'authorized_teachers', cleanId), updatedAdmin, { merge: true });
+      // If ID changed from admin to something else, clear old 'admin' doc
+      if (cleanId !== 'admin') {
+        await deleteDoc(doc(fb.db, 'authorized_teachers', 'admin')).catch(() => {});
+      }
+    } catch (e) {
+      console.warn("Firestore updateAdmin failed:", e);
+    }
+  }
+
+  return updatedAdmin;
+};
+
 // --- BATCHES & HOMEWORK DATA LOGIC ---
 
 const defaultBatches = [
