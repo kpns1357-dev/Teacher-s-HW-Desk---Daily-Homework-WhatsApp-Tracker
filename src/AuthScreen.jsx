@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { initFirebase } from './firebase';
-import { Lock, User, AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
+import { verifyTeacher } from './dataService';
+import { Lock, User, AlertCircle, LogIn, ShieldCheck, Key } from 'lucide-react';
 
 export default function AuthScreen({ onLoginSuccess }) {
   const [userId, setUserId] = useState('');
@@ -18,37 +17,17 @@ export default function AuthScreen({ onLoginSuccess }) {
       return;
     }
 
-    // Convert raw User ID to email format if user didn't type '@'
-    const emailToUse = userId.includes('@') 
-      ? userId.trim() 
-      : `${userId.trim().toLowerCase()}@homework.desk`;
-
     setLoading(true);
-    const fb = initFirebase();
-
-    if (!fb || !fb.auth) {
-      setErrorMsg('Authentication service unavailable. Please check internet connection.');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Strictly sign in only (no registration option on the page)
-      const userCred = await signInWithEmailAndPassword(fb.auth, emailToUse, password);
-      onLoginSuccess(userCred.user);
-    } catch (err) {
-      console.error('Sign-in error:', err);
-      if (
-        err.code === 'auth/invalid-credential' || 
-        err.code === 'auth/wrong-password' || 
-        err.code === 'auth/user-not-found'
-      ) {
-        setErrorMsg('Incorrect User ID or Password. Access denied.');
-      } else if (err.code === 'auth/too-many-requests') {
-        setErrorMsg('Too many failed attempts. Please wait a moment and try again.');
+      const res = await verifyTeacher(userId, password);
+      if (res.success) {
+        onLoginSuccess(res.teacher);
       } else {
-        setErrorMsg('Authentication failed. Please verify your credentials.');
+        setErrorMsg('Incorrect User ID or Password. Please try again.');
       }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -56,17 +35,32 @@ export default function AuthScreen({ onLoginSuccess }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
-      {/* Strict Authentication Wall */}
-      <div className="bg-white w-full max-w-sm rounded-3xl p-7 shadow-2xl border border-slate-100">
+      <div className="bg-white w-full max-w-sm rounded-3xl p-7 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Lock Icon & Branding */}
+        {/* Lock Header */}
         <div className="text-center mb-6">
           <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-600/20">
             <Lock className="w-7 h-7 stroke-[2.2]" />
           </div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Teacher Authorization</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Enter your assigned User ID & Password to access the homework desk.
+            Sign in with your Teacher ID & Password to access the desk.
+          </p>
+        </div>
+
+        {/* Master password hint for initial login */}
+        <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+          <div className="flex items-center gap-1.5 font-bold mb-1">
+            <Key className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Default Login:</span>
+          </div>
+          <p className="text-[11px] text-emerald-800">
+            User ID: <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono font-bold">admin</code>
+            <br />
+            Password: <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono font-bold">Teacher@123</code>
+          </p>
+          <p className="text-[10px] text-emerald-700 mt-1 italic">
+            Once inside, you can add new teachers with custom IDs and passwords anytime!
           </p>
         </div>
 
@@ -80,7 +74,7 @@ export default function AuthScreen({ onLoginSuccess }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-              User ID
+              Teacher User ID
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -90,7 +84,7 @@ export default function AuthScreen({ onLoginSuccess }) {
                 type="text"
                 required
                 autoFocus
-                placeholder="e.g. teacher1"
+                placeholder="e.g. admin or teacher1"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
@@ -133,9 +127,9 @@ export default function AuthScreen({ onLoginSuccess }) {
           </button>
         </form>
 
-        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
+        <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Restricted Portal • Authorized Teachers Only</span>
+          <span>Encrypted with SHA-256 Hashing</span>
         </div>
       </div>
     </div>

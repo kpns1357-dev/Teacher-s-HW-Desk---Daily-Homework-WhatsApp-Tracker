@@ -1,38 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { initFirebase } from './firebase';
 import AuthScreen from './AuthScreen';
 import BatchList from './BatchList';
 import BatchDetail from './BatchDetail';
 import { loadBatches, saveBatches } from './dataService';
-import { LogOut } from 'lucide-react';
+
+const ACTIVE_TEACHER_KEY = 'hw_logged_teacher';
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [currentTeacher, setCurrentTeacher] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [batches, setBatches] = useState([]);
   const [activeBatch, setActiveBatch] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Monitor Firebase Auth State
+  // Check if teacher is already logged in on this device
   useEffect(() => {
-    const fb = initFirebase();
-    if (!fb || !fb.auth) {
-      setAuthChecking(false);
-      return;
+    try {
+      const saved = localStorage.getItem(ACTIVE_TEACHER_KEY);
+      if (saved) {
+        setCurrentTeacher(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error(e);
     }
-
-    const unsubscribe = onAuthStateChanged(fb.auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthChecking(false);
-    });
-
-    return () => unsubscribe();
+    setAuthChecking(false);
   }, []);
 
-  // Initial load of batches once authenticated
+  // Load batches once logged in
   useEffect(() => {
-    if (!user) return;
+    if (!currentTeacher) return;
     async function init() {
       setLoading(true);
       const data = await loadBatches();
@@ -40,7 +36,18 @@ export default function App() {
       setLoading(false);
     }
     init();
-  }, [user]);
+  }, [currentTeacher]);
+
+  const handleLoginSuccess = (teacher) => {
+    setCurrentTeacher(teacher);
+    localStorage.setItem(ACTIVE_TEACHER_KEY, JSON.stringify(teacher));
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem(ACTIVE_TEACHER_KEY);
+    setCurrentTeacher(null);
+    setActiveBatch(null);
+  };
 
   const handleSelectBatch = (batch) => {
     setActiveBatch(batch);
@@ -69,29 +76,17 @@ export default function App() {
     saveBatches(updated);
   };
 
-  const handleSignOut = async () => {
-    const fb = initFirebase();
-    if (fb && fb.auth) {
-      await signOut(fb.auth);
-    }
-    setUser(null);
-    setActiveBatch(null);
-  };
-
   if (authChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600 font-medium text-sm">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-          <span>Verifying security credentials...</span>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-medium text-sm">
+        <span>Loading...</span>
       </div>
     );
   }
 
-  // If user is not logged in, render the Auth / Login screen
-  if (!user) {
-    return <AuthScreen onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+  // IF NOT LOGGED IN -> SHOW CLEAN LOGIN PAGE
+  if (!currentTeacher) {
+    return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
   if (loading) {
@@ -116,7 +111,7 @@ export default function App() {
       ) : (
         <BatchList
           batches={batches}
-          user={user}
+          user={currentTeacher}
           onSelectBatch={handleSelectBatch}
           onAddBatch={handleAddBatch}
           onDeleteBatch={handleDeleteBatch}

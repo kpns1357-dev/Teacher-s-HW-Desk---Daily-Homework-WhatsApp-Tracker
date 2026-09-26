@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  Users, Plus, Trash2, ArrowRight, BookOpen, MessageCircle, Settings, Calendar, Sparkles, CheckCircle2, ShieldAlert
+  Users, Plus, Trash2, ArrowRight, BookOpen, MessageCircle, Calendar, Sparkles, CheckCircle2, UserPlus, Shield, X, Check
 } from 'lucide-react';
+import { addTeacher } from './dataService';
 
 export default function BatchList({ 
   batches, 
@@ -18,11 +19,16 @@ export default function BatchList({
   const [newPhone, setNewPhone] = useState('');
   const [rawStudentNames, setRawStudentNames] = useState('');
 
+  // Add Teacher Modal state
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
+  const [newTeacherId, setNewTeacherId] = useState('');
+  const [newTeacherPass, setNewTeacherPass] = useState('');
+  const [teacherAddedMsg, setTeacherAddedMsg] = useState('');
+
   const handleCreateBatch = (e) => {
     e.preventDefault();
     if (!newBatchName.trim()) return;
 
-    // Parse students from textarea (one per line or comma-separated)
     const studentList = rawStudentNames
       .split('\n')
       .map(line => line.trim())
@@ -53,11 +59,24 @@ export default function BatchList({
     setShowAddModal(false);
   };
 
+  const handleCreateTeacher = async (e) => {
+    e.preventDefault();
+    if (!newTeacherId.trim() || !newTeacherPass) return;
+    await addTeacher(newTeacherId, newTeacherPass);
+    setTeacherAddedMsg(`Teacher "${newTeacherId.trim()}" added with password!`);
+    setNewTeacherId('');
+    setNewTeacherPass('');
+    setTimeout(() => {
+      setTeacherAddedMsg('');
+      setShowTeacherModal(false);
+    }, 2000);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-16">
       {/* Top Header */}
       <header className="sticky top-0 z-20 bg-emerald-600 text-white shadow-md">
-        <div className="max-w-xl mx-auto px-4 py-3.5 flex items-center justify-between">
+        <div className="max-w-xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-emerald-700/60 rounded-xl">
               <BookOpen className="w-5 h-5 text-emerald-100" />
@@ -67,16 +86,21 @@ export default function BatchList({
               <p className="text-xs text-emerald-100/90 font-medium">Daily Homework & WhatsApp Notifier</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-xs text-emerald-100 font-medium">
-              {user?.email ? user.email.replace('@homework.desk', '') : 'Teacher'}
-            </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTeacherModal(true)}
+              title="Add New Teacher ID & Password"
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-700/70 hover:bg-emerald-700 active:scale-95 text-xs text-emerald-100 font-semibold transition-all flex items-center gap-1.5"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Teacher</span>
+            </button>
             <button
               onClick={onSignOut}
-              title="Sign Out"
-              className="px-2.5 py-1.5 rounded-xl bg-emerald-700/60 hover:bg-emerald-700 active:scale-95 text-xs text-white font-semibold transition-all flex items-center gap-1.5"
+              title="Lock / Sign Out"
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-rose-600 active:scale-95 text-xs text-white font-semibold transition-all flex items-center gap-1"
             >
-              <span>Sign Out</span>
+              <span>Lock Desk</span>
             </button>
           </div>
         </div>
@@ -179,6 +203,88 @@ export default function BatchList({
           })}
         </div>
       </main>
+
+      {/* Add Teacher Modal */}
+      {showTeacherModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-base text-slate-900">Add Teacher Account</h3>
+              </div>
+              <button
+                onClick={() => setShowTeacherModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-4">
+              Create an authorized login ID and password for another teacher.
+            </p>
+
+            {teacherAddedMsg && (
+              <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span>{teacherAddedMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateTeacher} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Teacher User ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. sharma_sir or priya_mam"
+                  value={newTeacherId}
+                  onChange={(e) => setNewTeacherId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Password *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter their password"
+                  value={newTeacherPass}
+                  onChange={(e) => setNewTeacherPass(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Stored securely using SHA-256 encryption.
+                </p>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTeacherModal(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-md active:scale-95"
+                >
+                  Save Teacher
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Add Batch Modal */}
       {showAddModal && (
