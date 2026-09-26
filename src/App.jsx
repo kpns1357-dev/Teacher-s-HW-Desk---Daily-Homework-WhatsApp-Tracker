@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AuthScreen from './AuthScreen';
 import BatchList from './BatchList';
 import BatchDetail from './BatchDetail';
-import { loadBatches, saveBatches } from './dataService';
+import { loadBatches, saveBatches, signOutTeacher } from './dataService';
 
 const ACTIVE_TEACHER_KEY = 'hw_logged_teacher';
 
@@ -44,6 +44,7 @@ export default function App() {
   };
 
   const handleSignOut = () => {
+    signOutTeacher();
     localStorage.removeItem(ACTIVE_TEACHER_KEY);
     setCurrentTeacher(null);
     setActiveBatch(null);

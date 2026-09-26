@@ -2,11 +2,23 @@ import { initFirebase } from './firebase';
 import { 
   collection, doc, getDocs, setDoc, deleteDoc, getDoc 
 } from 'firebase/firestore';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as fbSignOut
+} from 'firebase/auth';
 
 const LOCAL_STORAGE_KEY_BATCHES = 'hw_batches_data';
 const LOCAL_STORAGE_KEY_LOGS = 'hw_logs_data';
 const LOCAL_STORAGE_INITIALIZED = 'hw_initialized';
 const LOCAL_STORAGE_TEACHERS = 'hw_teachers_list';
+
+// Internal domain used to bridge User IDs seamlessly to Firebase Auth
+const AUTH_DOMAIN_SUFFIX = '@teacherdesk.internal';
+export const formatAuthEmail = (userId) => {
+  const clean = userId.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  return `${clean}${AUTH_DOMAIN_SUFFIX}`;
+};
 
 // Default initial teacher credentials if none exist
 // Default Password is "Teacher@123" (stored as SHA-256 hash below)
@@ -60,14 +72,31 @@ export const loadTeachers = async () => {
   return defaultList;
 };
 
-// 2. Add New Teacher (Encrypts password immediately)
+// 2. Add New Teacher (Registers in Firebase Auth + Firestore)
 export const addTeacher = async (userId, plainPassword, name = '') => {
   const cleanId = userId.trim().toLowerCase();
   const passwordHash = await sha256(plainPassword);
+  const email = formatAuthEmail(cleanId);
+
+  const fb = initFirebase();
+  let authUid = null;
+
+  // Create Firebase Auth user
+  if (fb && fb.auth) {
+    try {
+      const userCred = await createUserWithEmailAndPassword(fb.auth, email, plainPassword);
+      authUid = userCred.user.uid;
+    } catch (authErr) {
+      // If user already exists in Firebase Auth, attempt to sign in or proceed
+      console.warn("Firebase Auth createUser warning:", authErr.code || authErr.message);
+    }
+  }
 
   const newTeacher = {
     id: cleanId,
     userId: cleanId,
+    authEmail: email,
+    authUid: authUid || null,
     name: name.trim() || cleanId,
     passwordHash: passwordHash,
     createdAt: new Date().toISOString()
@@ -83,7 +112,6 @@ export const addTeacher = async (userId, plainPassword, name = '') => {
 
   localStorage.setItem(LOCAL_STORAGE_TEACHERS, JSON.stringify(teachers));
 
-  const fb = initFirebase();
   if (fb && fb.db) {
     try {
       await setDoc(doc(fb.db, 'authorized_teachers', cleanId), newTeacher, { merge: true });
@@ -95,26 +123,71 @@ export const addTeacher = async (userId, plainPassword, name = '') => {
   return newTeacher;
 };
 
-// 3. Verify Teacher Credentials
+// 3. Verify Teacher Credentials using Firebase Authentication
 export const verifyTeacher = async (userId, inputPassword) => {
   const cleanId = userId.trim().toLowerCase();
+  const email = formatAuthEmail(cleanId);
   const inputHash = await sha256(inputPassword);
 
   const fb = initFirebase();
+
+  // Try Firebase Authentication First
+  if (fb && fb.auth) {
+    try {
+      const cred = await signInWithEmailAndPassword(fb.auth, email, inputPassword);
+      if (cred && cred.user) {
+        return {
+          success: true,
+          teacher: {
+            userId: cleanId,
+            authUid: cred.user.uid,
+            name: cred.user.displayName || cleanId
+          }
+        };
+      }
+    } catch (authErr) {
+      // If user not found in Firebase Auth yet (e.g. initial admin), auto-register if credentials match
+      if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential') {
+        if ((cleanId === 'admin' || cleanId === 'teacher1') && inputHash === DEFAULT_TEACHER_HASH) {
+          try {
+            const newCred = await createUserWithEmailAndPassword(fb.auth, email, inputPassword);
+            return {
+              success: true,
+              teacher: {
+                userId: cleanId,
+                authUid: newCred.user.uid,
+                name: 'Head Teacher'
+              }
+            };
+          } catch (createErr) {
+            console.warn("Auto-register initial admin in Firebase Auth:", createErr);
+          }
+        }
+      }
+      console.warn("Firebase Auth verify check:", authErr.code || authErr.message);
+    }
+  }
+
+  // Fallback: Verify against Firestore database
   if (fb && fb.db) {
     try {
       const snap = await getDoc(doc(fb.db, 'authorized_teachers', cleanId));
       if (snap.exists()) {
         const data = snap.data();
         if (data.passwordHash === inputHash) {
+          // If Firestore matched, try registering into Firebase Auth in background
+          if (fb.auth) {
+            createUserWithEmailAndPassword(fb.auth, email, inputPassword).catch(() => {});
+          }
           return { success: true, teacher: data };
         }
       }
     } catch (e) {
-      console.warn("Firestore verify fallback to local:", e);
+      console.warn("Firestore verify fallback:", e);
     }
   }
 
+  // Fallback: Local teachers cache
   const teachers = await loadTeachers();
   const found = teachers.find(t => t.userId === cleanId);
   if (found && found.passwordHash === inputHash) {
@@ -126,6 +199,18 @@ export const verifyTeacher = async (userId, inputPassword) => {
   }
 
   return { success: false, error: 'Incorrect User ID or Password' };
+};
+
+// 4. Sign out from Firebase Authentication
+export const signOutTeacher = async () => {
+  const fb = initFirebase();
+  if (fb && fb.auth) {
+    try {
+      await fbSignOut(fb.auth);
+    } catch (e) {
+      console.warn("Firebase signout warning:", e);
+    }
+  }
 };
 
 // --- BATCHES & HOMEWORK DATA LOGIC ---
